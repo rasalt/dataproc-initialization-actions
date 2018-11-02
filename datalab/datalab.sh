@@ -80,6 +80,7 @@ function configure_master(){
   for package in ${SPARK_PACKAGES//','/' '}; do
     pyspark_submit_args+="--packages ${package} "
   done
+  pyspark_submit_args+='--jars /usr/local/bunsen/jars/bunsen-shaded-0.4.3.jar '
   pyspark_submit_args+='pyspark-shell'
 
   # Java is too complicated to simply volume mount into the image, so we need
@@ -89,6 +90,9 @@ function configure_master(){
   cp /etc/apt/trusted.gpg .
   cp /etc/apt/sources.list.d/backports.list .
   cp /etc/apt/sources.list.d/dataproc.list .
+  # Get bunsen zip file
+  wget http://repo.maven.apache.org/maven2/com/cerner/bunsen/bunsen-assembly/0.4.3/bunsen-assembly-0.4.3-dist.zip
+  unzip bunsen-assembly-0.4.3-dist.zip
   cat << EOF > Dockerfile
 FROM ${DOCKER_IMAGE}
 ADD backports.list /etc/apt/sources.list.d/
@@ -98,6 +102,9 @@ ADD trusted.gpg /tmp/vm_trusted.gpg
 RUN apt-key add /tmp/vm_trusted.gpg
 RUN apt-get update
 RUN apt-get install -y hive spark-python openjdk-8-jre-headless
+COPY ./bunsen-assembly-0.4.3 /usr/local/bunsen-assembly-0.4.3
+USER root
+RUN ln -s /usr/local/bunsen-assembly-0.4.3 /usr/local/bunsen
 
 # Workers do not run docker, so have a different python environment.
 # To run python3, you need to run the conda init action.
@@ -110,7 +117,7 @@ ENV PYSPARK_PYTHON=$(ls /opt/conda/bin/python || which python)
 
 ENV SPARK_HOME='/usr/lib/spark'
 ENV JAVA_HOME='${JAVA_HOME}'
-ENV PYTHONPATH='${PYTHONPATH}'
+ENV PYTHONPATH='${PYTHONPATH}:/usr/local/bunsen/python'
 ENV PYTHONSTARTUP='/usr/lib/spark/python/pyspark/shell.py'
 ENV PYSPARK_SUBMIT_ARGS='${pyspark_submit_args}'
 ENV DATALAB_ENV='GCE'
